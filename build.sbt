@@ -37,7 +37,7 @@ lazy val plugin = project
 // Shared settings
 
 def common = Seq(
-  version := "1.0-SNAPSHOT"
+  version := "1.0.0"
 )
 
 def publishMaven = Seq(
@@ -59,7 +59,10 @@ def publishSbtPlugin = Seq(
 
 def noPublish = Seq(
   publish := {},
-  publishLocal := {}
+  publishLocal := {},
+  PgpKeys.publishSigned := {},
+  // publish-signed needs this for some reason...
+  publishTo := Some(Resolver.file("Dummy repo", target.value / "dummy-repo"))
 )
 
 def generateVersionFile = Def.task {
