@@ -14,7 +14,7 @@ lazy val enhancer = project
   .settings(
     organization := "com.typesafe.play",
     name := "play-enhancer",
-    libraryDependencies += "org.javassist" % "javassist" % "3.18.1-GA",
+    libraryDependencies += "org.javassist" % "javassist" % "3.18.2-GA",
     autoScalaLibrary := false,
     crossPaths := false
   )
@@ -37,8 +37,8 @@ lazy val plugin = project
 // Shared settings
 
 def common = Seq(
-  version := "1.0.0",
-  javacOptions ++= Seq("-source", "1.6", "-target", "1.6")
+  version := "1.0.1",
+  javacOptions in compile ++= Seq("-source", "1.6", "-target", "1.6")
 )
 
 def publishMaven = Seq(
