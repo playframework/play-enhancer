@@ -37,7 +37,8 @@ lazy val plugin = project
 // Shared settings
 
 def common = Seq(
-  version := "1.0.0"
+  version := "1.0.0",
+  javacOptions ++= Seq("-source", "1.6", "-target", "1.6")
 )
 
 def publishMaven = Seq(
