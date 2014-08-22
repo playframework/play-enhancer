@@ -97,7 +97,7 @@ public class PropertiesEnhancer {
                     }
 
                     try {
-                        CtMethod ctMethod = ctClass.getDeclaredMethod(setter);
+                        CtMethod ctMethod = ctClass.getDeclaredMethod(setter, new CtClass [] { ctField.getType() });
                         if (ctMethod.getParameterTypes().length != 1 || !ctMethod.getParameterTypes()[0].equals(ctField.getType()) || Modifier.isStatic(ctMethod.getModifiers())) {
                             throw new NotFoundException("it's not a setter !");
                         }
