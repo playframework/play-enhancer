@@ -37,7 +37,7 @@ lazy val plugin = project
 // Shared settings
 
 def common = Seq(
-  version := "1.0.1",
+  version := "1.0.2-SNAPSHOT",
   javacOptions in compile ++= Seq("-source", "1.6", "-target", "1.6")
 )
 
