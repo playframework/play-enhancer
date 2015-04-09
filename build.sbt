@@ -1,3 +1,5 @@
+import bintray.Keys._
+
 lazy val root = project
   .in(file("."))
   .aggregate(enhancer, plugin)
@@ -37,25 +39,34 @@ lazy val plugin = project
 // Shared settings
 
 def common = Seq(
-  version := "1.0.2-SNAPSHOT",
-  javacOptions in compile ++= Seq("-source", "1.6", "-target", "1.6")
+  javacOptions in compile ++= Seq("-source", "1.6", "-target", "1.6"),
+  homepage := Some(url("https://github.com/playframework/play-enhancer")),
+  licenses := Seq("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
+  pomExtra :=
+    <scm>
+      <url>git@github.com:playframework/play-enhancer.git</url>
+      <connection>scm:git:git@github.com:playframework/play-enhancer.git</connection>
+    </scm>
+    <developers>
+      <developer>
+        <id>jroper</id>
+        <name>James Roper</name>
+        <url>https://jazzy.id.au</url>
+      </developer>
+    </developers>
 )
 
 def publishMaven = Seq(
   publishTo := {
-    if (isSnapshot.value) Some(typesafeRepo("snapshots"))
-    else Some(typesafeRepo("releases"))
+    if (isSnapshot.value) Some(Opts.resolver.sonatypeSnapshots)
+    else Some(Opts.resolver.sonatypeStaging)
   }
 )
 
-def typesafeRepo(repo: String) = s"typesafe $repo" at s"http://private-repo.typesafe.com/typesafe/maven-$repo"
-
-def publishSbtPlugin = Seq(
+def publishSbtPlugin = bintrayPublishSettings ++ Seq(
   publishMavenStyle := false,
-  publishTo := {
-    if (isSnapshot.value) Some(Classpaths.sbtPluginSnapshots)
-    else Some(Classpaths.sbtPluginReleases)
-  }
+  bintrayOrganization in bintray := Some("playframework"),
+  repository in bintray := "sbt-plugin-releases"
 )
 
 def noPublish = Seq(
@@ -72,4 +83,39 @@ def generateVersionFile = Def.task {
   val content = s"play.enhancer.version=$version"
   IO.write(file, content)
   Seq(file)
+}
+
+// Release settings
+
+lazy val scriptedTask = TaskKey[Unit]("scripted-task")
+
+def releaseCommonSettings = releaseSettings ++ {
+  import sbtrelease._
+  import ReleaseStateTransformations._
+  import ReleaseKeys._
+
+  def runScriptedTest = ReleaseStep(
+    action = releaseTask(scriptedTask in plugin)
+  )
+
+  Seq(
+    crossBuild := true,
+    publishArtifactsAction := PgpKeys.publishSigned.value,
+    tagName := (version in ThisBuild).value,
+
+    releaseProcess := Seq[ReleaseStep](
+      checkSnapshotDependencies,
+      inquireVersions,
+      runClean,
+      runTest,
+      runScriptedTest,
+      setReleaseVersion,
+      commitReleaseVersion,
+      tagRelease,
+      publishArtifacts,
+      setNextVersion,
+      commitNextVersion,
+      pushChanges
+    )
+  )
 }
