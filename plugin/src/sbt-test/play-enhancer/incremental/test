@@ -1,0 +1,32 @@
+# First, disable enhancement and compile.
+# This will ensure that the timestamps of the original class files are well before the timestamps of the enhanced
+# class files
+> set manipulateBytecode in Compile := (compileIncremental in Compile).value
+> compile
+
+$ touch target/stamp
+# Sleep for a second to make sure timestamps tick over
+$ sleep 1000
+
+# Now re-enable byte code enhancement and compile
+> set manipulateBytecode in Compile := (PlayEnhancerKeys.generateAccessors in Compile).value((manipulateBytecode in Compile).value)
+> compile
+
+# Make sure that we did actually update the class files
+$ newer target/classes/play/test/enhancer/MyBean.class target/stamp
+$ newer target/classes/play/test/enhancer/MyBeanAccessor.class target/stamp
+
+$ sleep 1000
+$ touch target/stamp
+
+# Recompile
+> compile
+
+# Make sure the class files didn't change
+$ newer target/stamp target/classes/play/test/enhancer/MyBean.class
+$ newer target/stamp target/classes/play/test/enhancer/MyBeanAccessor.class
+
+# Reboot, and make sure the change was persisted
+> reboot
+$ newer target/stamp target/classes/play/test/enhancer/MyBean.class
+$ newer target/stamp target/classes/play/test/enhancer/MyBeanAccessor.class

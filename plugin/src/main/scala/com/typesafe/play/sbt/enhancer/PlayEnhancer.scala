@@ -4,7 +4,6 @@ import sbt._
 import java.io.File
 import sbt.Keys._
 import sbt.inc._
-import sbt.compiler.AggressiveCompile
 import play.core.enhancers.PropertiesEnhancer
 import sbt.plugins.JvmPlugin
 
@@ -14,8 +13,7 @@ object Imports {
     val generateAccessorsSources = TaskKey[Seq[File]]("playGenerateAccessorsSources", "The list of sources to generate accessors for")
     val rewriteAccessorsSources = TaskKey[Seq[File]]("playRewriteAccessorsSources", "The list of sources to rewrite accessors for")
     val timestampFilename = TaskKey[String]("playEnhancerTimestampFilename", "The filename for the timestamp")
-    // This is a function because it can't depend on compile, otherwise that would introduce a circular dependency.
-    val generateAccessors = TaskKey[Analysis => Analysis]("playGenerateAccessors", "Create the function that will generate and rewrite accessors")
+    val generateAccessors = TaskKey[Compiler.CompileResult => Compiler.CompileResult]("playGenerateAccessors", "Create the function that will generate and rewrite accessors")
   }
 }
 
@@ -41,9 +39,11 @@ object PlayEnhancer extends AutoPlugin {
     generateAccessorsSources := unmanagedSources.value.filter(_.getName.endsWith(".java")),
     rewriteAccessorsSources := sources.value,
 
-    compile := generateAccessors.value(compile.value),
+    manipulateBytecode := generateAccessors.value(manipulateBytecode.value),
 
-    generateAccessors := { analysis =>
+    generateAccessors := { result =>
+      val analysis = result.analysis
+
       val deps: Classpath = dependencyClasspath.value
       val classes: File = classDirectory.value
 
@@ -96,22 +96,9 @@ object PlayEnhancer extends AutoPlugin {
             stamps.markProduct(classFile, updateStampForClassFile(classFile, existingStamp))
         })
 
-        // Need to persist the updated analysis.
-        val agg = new AggressiveCompile((compileInputs in compile).value.incSetup.cacheFile)
-        // Load the old one. We do this so that we can get a copy of CompileSetup, which is the cache compiler
-        // configuration used to determine when everything should be invalidated. We could calculate it ourselves, but
-        // that would by a heck of a lot of fragile code due to the vast number of things we would have to depend on.
-        // Reading it out of the existing file is good enough.
-        val existing: Option[(Analysis, CompileSetup)] = agg.store.get()
-        // Since we've just done a compile before this task, this should never return None, so don't worry about what to
-        // do when it returns None.
-        existing.foreach {
-          case (_, compileSetup) => agg.store.set(updatedAnalysis, compileSetup)
-        }
-
-        updatedAnalysis
+        result.copy(analysis = updatedAnalysis, hasModified = true)
       } else {
-        analysis
+        result
       }
     }
   )
