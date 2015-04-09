@@ -38,7 +38,7 @@ lazy val plugin = project
 
 // Shared settings
 
-def common = Seq(
+def common = releaseCommonSettings ++ Seq(
   javacOptions in compile ++= Seq("-source", "1.6", "-target", "1.6"),
   homepage := Some(url("https://github.com/playframework/play-enhancer")),
   licenses := Seq("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
@@ -89,7 +89,7 @@ def generateVersionFile = Def.task {
 
 lazy val scriptedTask = TaskKey[Unit]("scripted-task")
 
-def releaseCommonSettings = releaseSettings ++ {
+def releaseCommonSettings: Seq[Setting[_]] = releaseSettings ++ {
   import sbtrelease._
   import ReleaseStateTransformations._
   import ReleaseKeys._
