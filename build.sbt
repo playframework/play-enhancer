@@ -1,6 +1,7 @@
 lazy val root = project
   .in(file("."))
   .aggregate(enhancer, plugin)
+  .settings(sonatypeSettings: _*)
   .settings(common: _*)
   .settings(noPublish: _*)
   .settings(
@@ -11,6 +12,7 @@ lazy val root = project
 lazy val enhancer = project
   .in(file("enhancer"))
   .disablePlugins(BintrayPlugin)
+  .settings(sonatypeSettings: _*)
   .settings(common: _*)
   .settings(publishMaven: _*)
   .settings(
@@ -48,6 +50,7 @@ def common = releaseCommonSettings ++ Seq(
   bintrayReleaseOnPublish := false,
   SonatypeKeys.profileName := "com.typesafe",
   aggregate in sonatypeReleaseTask := false,
+  aggregate in SonatypeKeys.sonatypeRelease := false,
   aggregate in bintrayRelease := false,
   pomExtra :=
     <scm>
@@ -63,7 +66,7 @@ def common = releaseCommonSettings ++ Seq(
     </developers>
 )
 
-def publishMaven = sonatypeSettings ++ Seq(
+def publishMaven = Seq(
   publishTo := {
     if (isSnapshot.value) Some(Opts.resolver.sonatypeSnapshots)
     else Some(Opts.resolver.sonatypeStaging)
@@ -78,7 +81,7 @@ def publishSbtPlugin = Seq(
   publishMavenStyle := isSnapshot.value
 )
 
-def noPublish = sonatypeSettings ++ Seq(
+def noPublish = Seq(
   publish := {},
   publishLocal := {},
   PgpKeys.publishSigned := {},
@@ -115,7 +118,6 @@ def releaseCommonSettings: Seq[Setting[_]] = releaseSettings ++ {
   )
 
   Seq(
-    crossBuild := true,
     publishArtifactsAction := PgpKeys.publishSigned.value,
     tagName := (version in ThisBuild).value,
 
