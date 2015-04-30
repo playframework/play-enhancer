@@ -1,16 +1,16 @@
-import bintray.Keys._
-
 lazy val root = project
   .in(file("."))
   .aggregate(enhancer, plugin)
   .settings(common: _*)
   .settings(noPublish: _*)
   .settings(
-    name := "play-enhancer-root"
+    name := "play-enhancer-root",
+    sonatypeReleaseTask := SonatypeKeys.sonatypeRelease.toTask("").value
   )
 
 lazy val enhancer = project
   .in(file("enhancer"))
+  .disablePlugins(BintrayPlugin)
   .settings(common: _*)
   .settings(publishMaven: _*)
   .settings(
@@ -42,6 +42,13 @@ def common = releaseCommonSettings ++ Seq(
   javacOptions in compile ++= Seq("-source", "1.6", "-target", "1.6"),
   homepage := Some(url("https://github.com/playframework/play-enhancer")),
   licenses := Seq("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
+  bintrayOrganization := Some("playframework"),
+  bintrayRepository := "sbt-plugin-releases",
+  bintrayPackage := "sbt-play-enhancer",
+  bintrayReleaseOnPublish := false,
+  SonatypeKeys.profileName := "com.typesafe",
+  aggregate in sonatypeReleaseTask := false,
+  aggregate in bintrayRelease := false,
   pomExtra :=
     <scm>
       <url>git@github.com:playframework/play-enhancer.git</url>
@@ -56,20 +63,22 @@ def common = releaseCommonSettings ++ Seq(
     </developers>
 )
 
-def publishMaven = Seq(
+def publishMaven = sonatypeSettings ++ Seq(
   publishTo := {
     if (isSnapshot.value) Some(Opts.resolver.sonatypeSnapshots)
     else Some(Opts.resolver.sonatypeStaging)
   }
 )
 
-def publishSbtPlugin = bintrayPublishSettings ++ Seq(
-  publishMavenStyle := false,
-  bintrayOrganization in bintray := Some("playframework"),
-  repository in bintray := "sbt-plugin-releases"
+def publishSbtPlugin = Seq(
+  publishTo := {
+    if (isSnapshot.value) Some(Opts.resolver.sonatypeSnapshots)
+    else publishTo.value
+  },
+  publishMavenStyle := isSnapshot.value
 )
 
-def noPublish = Seq(
+def noPublish = sonatypeSettings ++ Seq(
   publish := {},
   publishLocal := {},
   PgpKeys.publishSigned := {},
@@ -87,7 +96,8 @@ def generateVersionFile = Def.task {
 
 // Release settings
 
-lazy val scriptedTask = TaskKey[Unit]("scripted-task")
+lazy val scriptedTask = taskKey[Unit]("Scripted as a task")
+lazy val sonatypeReleaseTask = taskKey[Unit]("Sonatype release as a task")
 
 def releaseCommonSettings: Seq[Setting[_]] = releaseSettings ++ {
   import sbtrelease._
@@ -96,6 +106,12 @@ def releaseCommonSettings: Seq[Setting[_]] = releaseSettings ++ {
 
   def runScriptedTest = ReleaseStep(
     action = releaseTask(scriptedTask in plugin)
+  )
+  def promoteBintray = ReleaseStep(
+    action = releaseTask(bintrayRelease)
+  )
+  def promoteSonatype = ReleaseStep(
+    action = releaseTask(sonatypeReleaseTask)
   )
 
   Seq(
@@ -115,6 +131,8 @@ def releaseCommonSettings: Seq[Setting[_]] = releaseSettings ++ {
       publishArtifacts,
       setNextVersion,
       commitNextVersion,
+      promoteSonatype,
+      promoteBintray,
       pushChanges
     )
   )

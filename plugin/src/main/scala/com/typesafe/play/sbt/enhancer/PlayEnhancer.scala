@@ -31,14 +31,13 @@ object PlayEnhancer extends AutoPlugin {
 
   private def scopedSettings: Seq[Setting[_]] = Seq(
     sources in playEnhancerGenerateAccessors := unmanagedSources.value.filter(_.getName.endsWith(".java")),
-    manipulateBytecode <<= Def.taskDyn {
-      val compiled = manipulateBytecode.value
+    manipulateBytecode := {
+      // No need to use a dynTask here, since executing these tasks just return functions that do nothing unless
+      // they are actually invoked
       if (playEnhancerEnabled.value) {
-        Def.task {
-          playEnhancerRewriteAccessors.value(playEnhancerGenerateAccessors.value(compiled))
-        }
+        playEnhancerRewriteAccessors.value(playEnhancerGenerateAccessors.value(manipulateBytecode.value))
       } else {
-        Def.task(compiled)
+        manipulateBytecode.value
       }
     },
     playEnhancerGenerateAccessors <<= bytecodeEnhance(playEnhancerGenerateAccessors, (PropertiesEnhancer.generateAccessors _).curried),
