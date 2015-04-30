@@ -8,40 +8,45 @@ import play.core.enhancers.PropertiesEnhancer
 import sbt.plugins.JvmPlugin
 
 object Imports {
-  object PlayEnhancerKeys {
-    val enhancerVersion = SettingKey[String]("playEnhancerVersion", "The version used for the play-enhancer dependency")
-    val generateAccessorsSources = TaskKey[Seq[File]]("playGenerateAccessorsSources", "The list of sources to generate accessors for")
-    val rewriteAccessorsSources = TaskKey[Seq[File]]("playRewriteAccessorsSources", "The list of sources to rewrite accessors for")
-    val timestampFilename = TaskKey[String]("playEnhancerTimestampFilename", "The filename for the timestamp")
-    val generateAccessors = TaskKey[Compiler.CompileResult => Compiler.CompileResult]("playGenerateAccessors", "Create the function that will generate and rewrite accessors")
-  }
+  val playEnhancerVersion = settingKey[String]("The version used for the play-enhancer dependency")
+  val playEnhancerEnabled = settingKey[Boolean]("Whether the Play enhancer is enabled or not")
+  val playEnhancerGenerateAccessors = taskKey[Compiler.CompileResult => Compiler.CompileResult]("Create the function that will generate accessors")
+  val playEnhancerRewriteAccessors = taskKey[Compiler.CompileResult => Compiler.CompileResult]("Create the function that will rewrite accessors")
 }
 
 object PlayEnhancer extends AutoPlugin {
 
   override def requires = JvmPlugin
+  override def trigger = allRequirements
 
   val autoImport = Imports
 
-  import Imports.PlayEnhancerKeys._
+  import Imports._
 
   override def projectSettings = Seq(
-    timestampFilename := {
-      // Need to include scala version if cross paths compiling is used
-      val extra = if (crossPaths.value) s"_${scalaBinaryVersion.value}" else ""
-      s"play_instrumentation${extra}"
-    },
-    enhancerVersion := readResourceProperty("play.enhancer.version.properties", "play.enhancer.version"),
-    libraryDependencies += "com.typesafe.play" % "play-enhancer" % enhancerVersion.value
+    playEnhancerVersion := readResourceProperty("play.enhancer.version.properties", "play.enhancer.version"),
+    playEnhancerEnabled := true,
+    libraryDependencies += "com.typesafe.play" % "play-enhancer" % playEnhancerVersion.value
   ) ++ inConfig(Compile)(scopedSettings) ++ inConfig(Test)(scopedSettings)
 
   private def scopedSettings: Seq[Setting[_]] = Seq(
-    generateAccessorsSources := unmanagedSources.value.filter(_.getName.endsWith(".java")),
-    rewriteAccessorsSources := sources.value,
+    sources in playEnhancerGenerateAccessors := unmanagedSources.value.filter(_.getName.endsWith(".java")),
+    manipulateBytecode <<= Def.taskDyn {
+      val compiled = manipulateBytecode.value
+      if (playEnhancerEnabled.value) {
+        Def.task {
+          playEnhancerRewriteAccessors.value(playEnhancerGenerateAccessors.value(compiled))
+        }
+      } else {
+        Def.task(compiled)
+      }
+    },
+    playEnhancerGenerateAccessors <<= bytecodeEnhance(playEnhancerGenerateAccessors, (PropertiesEnhancer.generateAccessors _).curried),
+    playEnhancerRewriteAccessors <<= bytecodeEnhance(playEnhancerRewriteAccessors, (PropertiesEnhancer.rewriteAccess _).curried)
+  )
 
-    manipulateBytecode := generateAccessors.value(manipulateBytecode.value),
-
-    generateAccessors := { result =>
+  private def bytecodeEnhance(task: TaskKey[_], generateTask: String => File => Boolean): Def.Initialize[Task[Compiler.CompileResult => Compiler.CompileResult]] = Def.task {
+    { result =>
       val analysis = result.analysis
 
       val deps: Classpath = dependencyClasspath.value
@@ -49,7 +54,8 @@ object PlayEnhancer extends AutoPlugin {
 
       val classpath = (deps.map(_.data.getAbsolutePath).toArray :+ classes.getAbsolutePath).mkString(java.io.File.pathSeparator)
 
-      val timestampFile = streams.value.cacheDirectory / timestampFilename.value
+      val extra = if (crossPaths.value) s"_${scalaBinaryVersion.value}" else ""
+      val timestampFile = streams.value.cacheDirectory / s"play_instrumentation$extra"
       val lastEnhanced = if (timestampFile.exists) IO.read(timestampFile).toLong else Long.MinValue
 
       def getClassesForSources(sources: Seq[File]) = {
@@ -62,13 +68,8 @@ object PlayEnhancer extends AutoPlugin {
         }
       }
 
-      val generateAccessorsClasses = getClassesForSources(generateAccessorsSources.value)
-      val rewriteAccessorsClasses = getClassesForSources(rewriteAccessorsSources.value)
-
-      val classesWithGeneratedAccessors = generateAccessorsClasses.filter(PropertiesEnhancer.generateAccessors(classpath, _))
-      val classesWithAccessorsRewritten = rewriteAccessorsClasses.filter(PropertiesEnhancer.rewriteAccess(classpath, _))
-
-      val enhancedClasses = (classesWithGeneratedAccessors ++ classesWithAccessorsRewritten).distinct
+      val classesToEnhance = getClassesForSources((sources in task).value)
+      val enhancedClasses = classesToEnhance.filter(generateTask(classpath))
 
       IO.write(timestampFile, System.currentTimeMillis.toString)
 
@@ -100,8 +101,9 @@ object PlayEnhancer extends AutoPlugin {
       } else {
         result
       }
+
     }
-  )
+  }
 
   private def readResourceProperty(resource: String, property: String): String = {
     val props = new java.util.Properties

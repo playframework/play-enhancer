@@ -1,7 +1,7 @@
 # First, disable enhancement and compile.
 # This will ensure that the timestamps of the original class files are well before the timestamps of the enhanced
 # class files
-> set manipulateBytecode in Compile := (compileIncremental in Compile).value
+> set playEnhancerEnabled := false
 > compile
 
 $ touch target/stamp
@@ -9,7 +9,7 @@ $ touch target/stamp
 $ sleep 1000
 
 # Now re-enable byte code enhancement and compile
-> set manipulateBytecode in Compile := (PlayEnhancerKeys.generateAccessors in Compile).value((manipulateBytecode in Compile).value)
+> set playEnhancerEnabled := true
 > compile
 
 # Make sure that we did actually update the class files
