@@ -123,10 +123,10 @@ def releaseCommonSettings: Seq[Setting[_]] = releaseSettings ++ {
       commitReleaseVersion,
       tagRelease,
       publishArtifacts,
-      setNextVersion,
-      commitNextVersion,
       taskStep(bintrayRelease in plugin),
       inputTaskStep(SonatypeKeys.sonatypeRelease in enhancer, ""),
+      setNextVersion,
+      commitNextVersion,
       pushChanges
     )
   )
