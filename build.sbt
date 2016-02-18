@@ -7,7 +7,7 @@ lazy val `play-enhancer` = project
   .in(file("enhancer"))
   .enablePlugins(PlaySbtLibrary)
   .settings(
-    libraryDependencies += "org.javassist" % "javassist" % "3.18.2-GA",
+    libraryDependencies += "org.javassist" % "javassist" % "3.20.0-GA",
     autoScalaLibrary := false,
     crossPaths := false
   )
