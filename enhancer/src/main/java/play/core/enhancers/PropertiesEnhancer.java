@@ -3,28 +3,35 @@
  */
 package play.core.enhancers;
 
-import java.io.*;
-import java.util.*;
-
 import javassist.*;
-import javassist.expr.*;
-import javassist.bytecode.*;
-import javassist.bytecode.annotation.*;
+import javassist.bytecode.AnnotationsAttribute;
+import javassist.bytecode.SignatureAttribute;
+import javassist.bytecode.annotation.Annotation;
+import javassist.bytecode.annotation.MemberValue;
+import javassist.expr.ExprEditor;
+import javassist.expr.FieldAccess;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.lang.annotation.Retention;
+import java.lang.annotation.Target;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static java.lang.annotation.ElementType.*;
-import static java.lang.annotation.RetentionPolicy.*;
-
-import java.lang.annotation.Target;
-import java.lang.annotation.Retention;
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 /**
- * provides property support for Java classes via byte code enchancement
+ * provides property support for Java classes via byte code enhancement.
  */
 public class PropertiesEnhancer {
 
     /**
      * Marks the given method, field or type as one with both a generated setter and getter.
-     * PropertiesEnhancer creates this annotation for the enchanced method, field or type.
+     * PropertiesEnhancer creates this annotation for the enhanced method, field or type.
      */
     @Target({METHOD, FIELD, TYPE})
     @Retention(RUNTIME)
@@ -32,7 +39,7 @@ public class PropertiesEnhancer {
 
     /**
      * Marks the given method, field or type as one with a generated getter.
-     * PropertiesEnhancer creates this annotation for the enchanced method, field or type.
+     * PropertiesEnhancer creates this annotation for the enhanced method, field or type.
      */
     @Target({METHOD, FIELD, TYPE})
     @Retention(RUNTIME)
@@ -40,7 +47,7 @@ public class PropertiesEnhancer {
 
     /**
      * Marks the given method, field or type as one with a generated setter.
-     * PropertiesEnhancer creates this annotation for the enchanced method, field or type.
+     * PropertiesEnhancer creates this annotation for the enhanced method, field or type.
      */
     @Target({METHOD, FIELD, TYPE})
     @Retention(RUNTIME)
@@ -48,82 +55,96 @@ public class PropertiesEnhancer {
 
     /**
      * Marks the given method, field or type as one with a rewritten setter and getter.
-     * PropertiesEnhancer creates this annotation for the enchanced method, field or type.
+     * PropertiesEnhancer creates this annotation for the enhanced method, field or type.
      */
     @Target({METHOD, FIELD, TYPE})
     @Retention(RUNTIME)
     public static @interface RewrittenAccessor {}
 
-    public static boolean generateAccessors(String classpath, File classFile) throws Exception {
-        ClassPool classPool = new ClassPool();
+    public static boolean generateAccessors(final String classpath, final File classFile) throws Exception {
+        final ClassPool classPool = new ClassPool();
         classPool.appendSystemPath();
         classPool.appendPathList(classpath);
 
-        FileInputStream is = new FileInputStream(classFile);
+        final FileInputStream is = new FileInputStream(classFile);
         try {
-            CtClass ctClass = classPool.makeClass(is);
-            if(hasAnnotation(ctClass, GeneratedAccessor.class)) {
+            final CtClass ctClass = classPool.makeClass(is);
+            if (hasAnnotation(ctClass, GeneratedAccessor.class)) {
                 is.close();
                 return false;
             }
-            for (CtField ctField : ctClass.getDeclaredFields()) {
-                if(isProperty(ctField)) {
+            for (final CtField ctField : ctClass.getDeclaredFields()) {
+                if (isProperty(ctField)) {
 
-                    // Property name
-                    String propertyName = ctField.getName().substring(0, 1).toUpperCase() + ctField.getName().substring(1);
-                    String getter = "get" + propertyName;
-                    String setter = "set" + propertyName;
+                    final String propertyType = ctField.getType().getSimpleName();
+                    final List<String> getters = new ArrayList<String>();
+                    final List<String> setters = new ArrayList<String>();
 
-                    SignatureAttribute signature = ((SignatureAttribute)ctField.getFieldInfo().getAttribute(SignatureAttribute.tag));
-
-                    try {
-                        CtMethod ctMethod = ctClass.getDeclaredMethod(getter);
-                        if (ctMethod.getParameterTypes().length > 0 || Modifier.isStatic(ctMethod.getModifiers())) {
-                            throw new NotFoundException("it's not a getter !");
+                    if (propertyType.compareTo("boolean") == 0 || propertyType.compareTo("Boolean") == 0) {
+                        if (ctField.getName().matches("(?i)(is|has|can)[a-zA-Z0-9\\-_]+")) {
+                            getters.add(ctField.getName());
+                        } else {
+                            final String propertyName = ctField.getName().substring(0, 1).toUpperCase() + ctField.getName().substring(1);
+                            getters.add("is" + propertyName);
                         }
-                    } catch (NotFoundException noGetter) {
-                        // Create getter
-                        CtMethod getMethod = CtMethod.make("public " + ctField.getType().getName() + " " + getter + "() { return this." + ctField.getName() + "; }", ctClass);
-                        ctClass.addMethod(getMethod);
-                        createAnnotation(getAnnotations(getMethod), GeneratedAccessor.class);
-                        createAnnotation(getAnnotations(ctField), GeneratedGetAccessor.class);
-                        if(signature != null) {
-                            String fieldSignature = signature.getSignature();
-                            String getMethodSignature = "()" + fieldSignature;
-                            getMethod.getMethodInfo().addAttribute(
-                                    new SignatureAttribute(getMethod.getMethodInfo().getConstPool(), getMethodSignature)
-                            );
+                    }
+                    // Continue to add default getX and getY for boolean fields to avoid API breaking
+                    final String propertyName = ctField.getName().substring(0, 1).toUpperCase() + ctField.getName().substring(1);
+                    getters.add("get" + propertyName);
+                    setters.add("set" + propertyName);
+
+                    final SignatureAttribute signature = ((SignatureAttribute) ctField.getFieldInfo().getAttribute(SignatureAttribute.tag));
+
+                    for (final String getter : getters) {
+                        try {
+                            final CtMethod ctMethod = ctClass.getDeclaredMethod(getter);
+                            if (ctMethod.getParameterTypes().length > 0 || Modifier.isStatic(ctMethod.getModifiers())) {
+                                throw new NotFoundException("it's not a getter !");
+                            }
+                        } catch (NotFoundException noGetter) {
+                            // Create getter
+                            final CtMethod getMethod = CtMethod.make("public " + ctField.getType().getName() + " " + getter + "() { return this." + ctField.getName() + "; }", ctClass);
+                            ctClass.addMethod(getMethod);
+                            createAnnotation(getAnnotations(getMethod), GeneratedAccessor.class);
+                            createAnnotation(getAnnotations(ctField), GeneratedGetAccessor.class);
+                            if (signature != null) {
+                                final String fieldSignature = signature.getSignature();
+                                final String getMethodSignature = "()" + fieldSignature;
+                                getMethod.getMethodInfo().addAttribute(
+                                        new SignatureAttribute(getMethod.getMethodInfo().getConstPool(), getMethodSignature)
+                                );
+                            }
                         }
                     }
 
-                    try {
-                        CtMethod ctMethod = ctClass.getDeclaredMethod(setter, new CtClass [] { ctField.getType() });
-                        if (ctMethod.getParameterTypes().length != 1 || !ctMethod.getParameterTypes()[0].equals(ctField.getType()) || Modifier.isStatic(ctMethod.getModifiers())) {
-                            throw new NotFoundException("it's not a setter !");
-                        }
-                    } catch (NotFoundException noSetter) {
-                        // Create setter
-                        CtMethod setMethod = CtMethod.make("public void " + setter + "(" + ctField.getType().getName() + " value) { this." + ctField.getName() + " = value; }", ctClass);
-                        ctClass.addMethod(setMethod);
-                        createAnnotation(getAnnotations(setMethod), GeneratedAccessor.class);
-                        createAnnotation(getAnnotations(ctField), GeneratedSetAccessor.class);
-                        if(signature != null) {
-                            String fieldSignature = signature.getSignature();
-                            String setMethodSignature = "(" + fieldSignature + ")V";
-                            setMethod.getMethodInfo().addAttribute(
-                                    new SignatureAttribute(setMethod.getMethodInfo().getConstPool(), setMethodSignature)
-                            );
+                    for (final String setter : setters) {
+                        try {
+                            final CtMethod ctMethod = ctClass.getDeclaredMethod(setter, new CtClass[]{ctField.getType()});
+                            if (ctMethod.getParameterTypes().length != 1 || !ctMethod.getParameterTypes()[0].equals(ctField.getType()) || Modifier.isStatic(ctMethod.getModifiers())) {
+                                throw new NotFoundException("it's not a setter !");
+                            }
+                        } catch (NotFoundException noSetter) {
+                            // Create setter
+                            final CtMethod setMethod = CtMethod.make("public void " + setter + "(" + ctField.getType().getName() + " value) { this." + ctField.getName() + " = value; }", ctClass);
+                            ctClass.addMethod(setMethod);
+                            createAnnotation(getAnnotations(setMethod), GeneratedAccessor.class);
+                            createAnnotation(getAnnotations(ctField), GeneratedSetAccessor.class);
+                            if (signature != null) {
+                                final String fieldSignature = signature.getSignature();
+                                final String setMethodSignature = "(" + fieldSignature + ")V";
+                                setMethod.getMethodInfo().addAttribute(
+                                        new SignatureAttribute(setMethod.getMethodInfo().getConstPool(), setMethodSignature)
+                                );
+                            }
                         }
                     }
-
                 }
-
             }
 
             createAnnotation(getAnnotations(ctClass), GeneratedAccessor.class);
 
             is.close();
-            FileOutputStream os = new FileOutputStream(classFile);
+            final FileOutputStream os = new FileOutputStream(classFile);
             os.write(ctClass.toBytecode());
             os.close();
             return true;
@@ -291,5 +312,4 @@ public class PropertiesEnhancer {
     static void createAnnotation(AnnotationsAttribute attribute, Class<? extends java.lang.annotation.Annotation> annotationType) {
         createAnnotation(attribute, annotationType, new HashMap<String, MemberValue>());
     }
-
 }
