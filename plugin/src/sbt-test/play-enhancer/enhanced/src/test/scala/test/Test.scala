@@ -9,7 +9,22 @@ object Test extends App {
   myBean.setProp("foo")
   assert(myBean.getProp == "foo")
 
-  println("Now check that accessors have been rewritten.  If they haven't been, then the accessor will go directly to the field, rather than getting our overridden value")
+  myBean.setIsAdmin(true)
+  assert(myBean.isAdmin)
+
+  myBean.setB(true)
+  assert(myBean.isB)
+
+  myBean.setB(false)
+  assert(!myBean.getB)
+
+  myBean.setCanDeleteAccount(true)
+  assert(myBean.canDeleteAccount)
+
+  myBean.setCanDeleteAccount(true)
+  assert(myBean.getCanDeleteAccount)
+
+  println("Now check that accessors have been rewritten. If they haven't been, then the accessor will go directly to the field, rather than getting our overridden value")
   class OverridingBean extends MyBean {
     override def getProp = "bar"
   }
