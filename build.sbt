@@ -7,7 +7,7 @@ lazy val `play-enhancer` = project
   .in(file("enhancer"))
   .enablePlugins(PlaySbtLibrary)
   .settings(
-    libraryDependencies += "org.javassist" % "javassist" % "3.20.0-GA",
+    libraryDependencies += "org.javassist" % "javassist" % "3.21.0-GA",
     autoScalaLibrary := false,
     crossPaths := false
   )
@@ -30,4 +30,3 @@ def generateVersionFile = Def.task {
   IO.write(file, content)
   Seq(file)
 }
-
