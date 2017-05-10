@@ -40,8 +40,8 @@ object PlayEnhancer extends AutoPlugin {
         manipulateBytecode.value
       }
     },
-    playEnhancerGenerateAccessors <<= bytecodeEnhance(playEnhancerGenerateAccessors, (PropertiesEnhancer.generateAccessors _).curried),
-    playEnhancerRewriteAccessors <<= bytecodeEnhance(playEnhancerRewriteAccessors, (PropertiesEnhancer.rewriteAccess _).curried)
+    playEnhancerGenerateAccessors := bytecodeEnhance(playEnhancerGenerateAccessors, (PropertiesEnhancer.generateAccessors _).curried).value,
+    playEnhancerRewriteAccessors := bytecodeEnhance(playEnhancerRewriteAccessors, (PropertiesEnhancer.rewriteAccess _).curried).value
   )
 
   private def bytecodeEnhance(task: TaskKey[_], generateTask: String => File => Boolean): Def.Initialize[Task[Compiler.CompileResult => Compiler.CompileResult]] = Def.task {
