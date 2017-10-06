@@ -18,7 +18,7 @@ lazy val `sbt-play-enhancer` = project
   .dependsOn(`play-enhancer`)
   .settings(
     organization := "com.typesafe.sbt",
-    resourceGenerators in Compile <+= generateVersionFile
+    resourceGenerators in Compile += generateVersionFile.taskValue
   )
 
 playBuildRepoName in ThisBuild := "play-enhancer"
