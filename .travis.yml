@@ -1,6 +1,6 @@
 jdk: openjdk6
 language: scala
-script: sbt publishLocal test scripted
+script: sbt +publishLocal +test +scripted
 sudo: false
 cache:
   directories:
