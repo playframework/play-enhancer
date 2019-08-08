@@ -1,4 +1,4 @@
-jdk: openjdk6
+jdk: openjdk8
 language: scala
 script: sbt +publishLocal +test +scripted
 sudo: false
