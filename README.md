@@ -4,6 +4,6 @@ This plugin provides byte code enhancement to Play 2.4+ projects, generating get
 
 ## Support
 
-The Play Mailer library is *[Community Driven][]*.
+The Play Enhancer library is *[Community Driven][]*.
 
 [Community Driven]: https://developer.lightbend.com/docs/lightbend-platform/introduction/getting-help/support-terminology.html#community-driven
